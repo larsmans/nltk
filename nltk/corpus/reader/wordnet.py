@@ -609,7 +609,8 @@ class Synset(_WordNetObject):
         except ValueError:
             return []
 
-    def hypernym_distances(self, distance=0, simulate_root=False):
+    def hypernym_distances(self, distance=0, simulate_root=False,
+                           shortest_only=False):
         """
         Get the path(s) from this synset to the root, counting the distance
         of each node from the initial node on the way. A set of
@@ -618,9 +619,18 @@ class Synset(_WordNetObject):
         :type distance: int
         :param distance: the distance (number of edges) from this hypernym to
             the original hypernym ``Synset`` on which this method was called.
+        :param shortest_only: return only the shortest distances to each
+            hypernym.
         :return: A set of ``(Synset, int)`` tuples where each ``Synset`` is
            a hypernym of the first ``Synset``.
         """
+        if shortest_only:
+            # Use fast algorithm
+            return self._shortest_hypernym_paths(distance, simulate_root)
+        else:
+            return self._hypernym_distances(distance, simulate_root)
+
+    def _hypernym_distances(self, distance, simulate_root):
         distances = set([(self, distance)])
         for hypernym in self._hypernyms() + self._instance_hypernyms():
             distances |= hypernym.hypernym_distances(distance+1, simulate_root=False)
@@ -631,11 +641,11 @@ class Synset(_WordNetObject):
             distances.add((fake_synset, fake_synset_distance+1))
         return distances
 
-    def _shortest_hypernym_paths(self, simulate_root):
+    def _shortest_hypernym_distances(self, distance, simulate_root):
         if self._name == '*ROOT*':
             return {self: 0}
 
-        queue = deque([(self, 0)])
+        queue = deque([(self, distance)])
         path = {}
 
         while queue:
@@ -673,8 +683,8 @@ class Synset(_WordNetObject):
         if self == other:
             return 0
 
-        dist_dict1 = self._shortest_hypernym_paths(simulate_root)
-        dist_dict2 = other._shortest_hypernym_paths(simulate_root)
+        dist_dict1 = self._shortest_hypernym_distances(0, simulate_root)
+        dist_dict2 = other._shortest_hypernym_distances(0, simulate_root)
 
         # For each ancestor synset common to both subject synsets, find the
         # connecting path length. Return the shortest of these.
